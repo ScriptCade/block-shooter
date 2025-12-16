@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Block Buster FPS - Ultimate</title>
+    <title>Block Shooter</title>
     <style>
         :root {
             --primary: #2c3e50;
@@ -47,7 +47,7 @@
             opacity: 0;
             transform: scale(1.05);
             z-index: 10;
-            background: rgba(255,255,255,0.1); /* Very subtle tint */
+            background: rgba(255,255,255,0.1); 
         }
         .screen.active {
             opacity: 1;
@@ -116,7 +116,7 @@
             top: -1px;
         }
 
-        /* HUD - Updated with Underlay */
+        /* HUD */
         #ui-hud {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -125,7 +125,7 @@
             flex-direction: column;
             justify-content: space-between;
             box-sizing: border-box;
-            background: linear-gradient(to bottom, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.4) 15%, rgba(255,255,255,0) 30%);
+            background: none;
         }
         .hud-content {
             padding: 30px;
@@ -135,12 +135,23 @@
             justify-content: space-between;
         }
         .hud-top { display: flex; justify-content: space-between; align-items: flex-start; }
-        .score-block { text-align: left; }
-        .score-val { font-size: 56px; font-weight: 800; line-height: 0.9; letter-spacing: -2px; color: var(--primary); text-shadow: 0 2px 0 rgba(255,255,255,0.8); }
-        .score-label { font-size: 14px; color: var(--primary); font-weight: 800; text-transform: uppercase; margin-bottom: 5px; opacity: 0.8; }
+        
+        .score-block { 
+            text-align: left; 
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            padding: 15px 25px;
+            border-radius: 24px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.05);
+            border: 1px solid rgba(255,255,255,0.8);
+        }
+        
+        .score-val { font-size: 42px; font-weight: 800; line-height: 1; letter-spacing: -1.5px; color: var(--primary); }
+        .score-label { font-size: 12px; color: #7f8c8d; font-weight: 800; text-transform: uppercase; margin-bottom: 2px; letter-spacing: 0.5px; }
         .coin-display { 
-            font-size: 24px; font-weight: 700; color: #f39c12; 
-            text-shadow: 0 2px 10px rgba(243, 156, 18, 0.1);
+            font-size: 20px; font-weight: 700; color: #f39c12; 
+            text-shadow: 0 2px 5px rgba(243, 156, 18, 0.1);
             display: flex; align-items: center; gap: 8px; margin-top: 5px;
         }
         
@@ -171,17 +182,18 @@
         /* EXIT BTN */
         #btn-exit {
             pointer-events: auto;
-            background: rgba(255,255,255,0.9);
+            background: rgba(255,255,255,0.75);
             width: 48px; height: 48px;
-            border-radius: 16px;
+            border-radius: 24px;
             display: flex; align-items: center; justify-content: center;
             font-weight: 900;
             font-size: 22px;
             cursor: pointer;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.05);
             transition: all 0.2s ease;
             color: #e74c3c;
-            backdrop-filter: blur(5px);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,0.8);
         }
         #btn-exit:hover { transform: scale(1.1) rotate(90deg); box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
 
@@ -334,8 +346,7 @@
     <!-- MAIN MENU -->
     <div id="screen-menu" class="screen active">
         <div class="panel">
-            <h1>BLOCK BUSTER</h1>
-            <h2>ULTIMATE EDITION</h2>
+            <h1>BLOCK SHOOTER</h1>
             <div class="stat-row">
                 <div class="stat"><span id="menu-score">0</span><span>BEST SCORE</span></div>
                 <div class="stat"><span id="menu-coins">0</span><span>BANK</span></div>
@@ -407,7 +418,7 @@
             DANGER_Y: 120,
             DEFAULT_FIRE_RATE: 200,
             MINIGUN_FIRE_RATE: 70,
-            STORAGE_KEY: 'block_buster_v5'
+            STORAGE_KEY: 'block_buster_v6'
         };
 
         const UPGRADES = {
@@ -468,6 +479,7 @@
                     o.stop(t + 0.1);
                 },
                 hit: () => Audio.play(200, 'sine', 0.1, 0.1),
+                bossHit: () => { Audio.play(150, 'sawtooth', 0.1, 0.15); },
                 coin: () => { Audio.play(1200, 'square', 0.1, 0.05); setTimeout(() => Audio.play(1600, 'square', 0.1, 0.05), 50); },
                 powerup: () => Audio.play(600, 'sine', 0.3, 0.1),
                 explode: () => Audio.play(100, 'sawtooth', 0.4, 0.2),
@@ -550,6 +562,7 @@
             activeEffects: new Map(),
             timers: { spawn: 0, shot: 0 },
             mouse: { x: 0, y: 0, down: false },
+            blocksSpawnedCount: 0,
             
             // Animation States
             shake: 0,
@@ -618,10 +631,8 @@
                 window.addEventListener('mouseup', () => this.mouse.down = false);
                 window.addEventListener('touchend', () => this.mouse.down = false);
 
-                // Haxxor Listener (Bugfix: Case insensitive and reliable)
                 let buffer = "";
                 window.addEventListener('keydown', (e) => {
-                    // Ignore modifier keys
                     if(e.key.length === 1) {
                         buffer += e.key.toLowerCase();
                         if (buffer.length > 20) buffer = buffer.slice(-20);
@@ -634,6 +645,7 @@
                 this.state = 'PLAYING';
                 this.score = 0;
                 this.sessionCoins = 0;
+                this.blocksSpawnedCount = 0;
                 this.grid = Array(CONFIG.COLS).fill(null).map(() => []);
                 this.entities.blocks = [];
                 this.entities.bullets = [];
@@ -644,7 +656,6 @@
                 
                 UI.hideScreens();
                 document.getElementById('ui-hud').style.display = 'flex';
-                // Remove blur
                 this.canvas.classList.remove('blurred');
                 
                 UI.updateHUD();
@@ -664,25 +675,51 @@
                 document.getElementById('go-score').innerText = this.score;
                 document.getElementById('go-coins').innerText = this.sessionCoins;
                 
-                // Add Blur
                 this.canvas.classList.add('blurred');
                 document.getElementById('screen-gameover').classList.add('active');
             },
 
             spawnBlock() {
-                const col = Math.floor(Math.random() * CONFIG.COLS);
-                const color = ['#3498db', '#2ecc71', '#9b59b6', '#f1c40f', '#e67e22', '#1abc9c'][Math.floor(Math.random()*6)];
-                this.entities.blocks.push({
-                    col, x: 0, y: -this.cellSize, w: this.cellSize-6, h: this.cellSize-6,
-                    color, targetY: null, active: true
-                });
+                this.blocksSpawnedCount++;
+                const isBoss = (this.blocksSpawnedCount % 10 === 0);
+                
+                if (isBoss) {
+                    // Spawn 2x2 Boss Block
+                    const col = Math.floor(Math.random() * (CONFIG.COLS - 1)); // -1 to ensure room for width 2
+                    this.entities.blocks.push({
+                        type: 'BOSS',
+                        col: col,
+                        x: 0, 
+                        y: -this.cellSize * 2, 
+                        w: (this.cellSize * 2) - 6, 
+                        h: (this.cellSize * 2) - 6,
+                        color: '#2c3e50',
+                        hp: 15, maxHp: 15,
+                        targetY: null, 
+                        active: true
+                    });
+                } else {
+                    // Normal Block
+                    const col = Math.floor(Math.random() * CONFIG.COLS);
+                    const color = ['#3498db', '#2ecc71', '#9b59b6', '#f1c40f', '#e67e22', '#1abc9c'][Math.floor(Math.random()*6)];
+                    this.entities.blocks.push({
+                        type: 'NORMAL',
+                        col: col, 
+                        x: 0, 
+                        y: -this.cellSize, 
+                        w: this.cellSize-6, 
+                        h: this.cellSize-6,
+                        color: color, 
+                        targetY: null, 
+                        active: true
+                    });
+                }
 
-                // Spawn Powerup logic based on upgrades
+                // Powerups
                 const baseChance = 0.05;
                 const luckBonus = Data.profile.upgrades.luck * 0.01;
                 
                 if (Math.random() < (baseChance + luckBonus)) {
-                    // Pool construction
                     const pool = ['TRIPLE', 'MINIGUN'];
                     if (Data.profile.upgrades.unlock_bomb) pool.push('BOMB');
                     if (Data.profile.upgrades.unlock_laser) pool.push('LASER');
@@ -705,11 +742,10 @@
             },
 
             fireWeapon() {
-                // Calculate gun tip position
                 const cx = this.width / 2;
                 const cy = this.height;
                 const angle = Math.atan2(this.mouse.y - cy, this.mouse.x - cx);
-                const barrelLen = 70; // Matches gun drawing length
+                const barrelLen = 70; 
                 
                 const tipX = cx + Math.cos(angle) * barrelLen;
                 const tipY = cy + Math.sin(angle) * barrelLen;
@@ -718,9 +754,8 @@
                 const isLaser = this.activeEffects.has('LASER');
                 const isBomb = this.activeEffects.has('BOMB');
 
-                // Animation States
                 this.gunRecoil = 25;
-                this.muzzleFlash = 3; // frames to show flash
+                this.muzzleFlash = 3;
                 Audio.sfx.shoot();
 
                 if (isLaser) {
@@ -755,30 +790,25 @@
             },
 
             resolveLaserHit(x, y, angle) {
-                // Simple raycast for laser
                 const step = 20;
                 let curX = x; 
                 let curY = y;
                 
-                // Advance ray until off screen
                 while (curX > 0 && curX < this.width && curY > 0 && curY < this.height) {
                     curX += Math.cos(angle) * step;
                     curY += Math.sin(angle) * step;
                     
-                    // Check point against all blocks
                     const checkPoint = (bx, by, w, h) => {
                         return (curX > bx && curX < bx + w && curY > by && curY < by + h);
                     }
 
-                    // Falling
                     for(let i=this.entities.blocks.length-1; i>=0; i--) {
                         const b = this.entities.blocks[i];
                         const bx = this.gridOffsetX + b.col * this.cellSize;
-                        if (checkPoint(bx, b.y, this.cellSize, this.cellSize)) {
-                            this.destroyBlock(b, 'falling', i);
+                        if (checkPoint(bx, b.y, b.w, b.h)) { // Use block's actual width/height
+                            this.handleBulletHit({type:'LASER'}, b, 'falling', i);
                         }
                     }
-                    // Grid
                     for (let c=0; c<CONFIG.COLS; c++) {
                         for (let r=this.grid[c].length-1; r>=0; r--) {
                             const b = this.grid[c][r];
@@ -793,10 +823,9 @@
 
             addEffect(type) {
                 if (type === 'NUKE') {
-                    // Kill everything
                     this.entities.blocks = [];
                     this.grid = Array(CONFIG.COLS).fill(null).map(()=>[]);
-                    this.activeEffects.set('NUKE', 0.5); // Visual flash
+                    this.activeEffects.set('NUKE', 0.5); 
                     this.shake = 20;
                     Audio.sfx.explode();
                     return;
@@ -815,14 +844,10 @@
                 const dt = now - this.lastTime;
                 this.lastTime = now;
 
-                // Infinite Money Cheat (Run globally to support menu/shop)
                 if (this.infiniteMoney) {
                     if (Data.profile.coins < 999999) Data.profile.coins = 999999;
-                    
-                    // Force update UI depending on state
                     if (this.state === 'MENU') {
                         UI.updateMenuStats();
-                        // Update shop UI manually if needed
                         const shopCoins = document.getElementById('shop-coins');
                         if (shopCoins) shopCoins.innerText = Data.profile.coins;
                     } else if (this.state === 'PLAYING') {
@@ -831,13 +856,11 @@
                 }
 
                 if (this.state !== 'PLAYING') {
-                    // Still draw bg in menu
                     this.drawBackground(now);
                     this.loopId = requestAnimationFrame(t => this.loop(t));
                     return;
                 }
 
-                // 1. Update Effects
                 for (const [key, val] of this.activeEffects) {
                     const newVal = val - dt;
                     if (newVal <= 0) {
@@ -849,7 +872,6 @@
                 }
                 if (this.activeEffects.has('NUKE')) this.shake = 10;
 
-                // 2. Shooting
                 if (this.mouse.down && this.activeEffects.has('MINIGUN')) {
                     if (now - this.timers.shot > (CONFIG.MINIGUN_FIRE_RATE - Data.profile.upgrades.rate * 5)) {
                         this.fireWeapon();
@@ -857,10 +879,8 @@
                     }
                 }
 
-                // 3. Spawning (Faster rate logic)
                 const adrenaline = Data.profile.upgrades.adrenaline || 0;
-                // Faster base rate (600 instead of 1200) and lower cap (100 instead of 250)
-                let spawnTime = Math.max(100, 600 - (this.score * 0.8) - (adrenaline * 80)); 
+                let spawnTime = Math.max(250, 900 - (this.score * 0.6) - (adrenaline * 60)); 
 
                 if (this.timers.spawn > spawnTime) {
                     this.spawnBlock();
@@ -868,43 +888,77 @@
                 }
                 this.timers.spawn += dt;
 
-                // 4. Physics & Updates
                 const timeScale = dt / 16.67;
-                
-                // Recoil Decay
                 if (this.gunRecoil > 0.1) this.gunRecoil *= 0.85;
                 if (this.muzzleFlash > 0) this.muzzleFlash--;
 
-                // Blocks
                 const floorY = this.height - CONFIG.GRID_MARGIN_BOTTOM;
-                const fallSpeed = (180 + (this.score * 0.5) + (adrenaline * 50)) * (dt/1000);
+                
+                // Falling Block Logic
+                for(let i=this.entities.blocks.length-1; i>=0; i--) {
+                    const b = this.entities.blocks[i];
+                    
+                    // Speed Calculation
+                    let fallSpeed = (180 + (this.score * 0.5) + (adrenaline * 50)) * (dt/1000);
+                    if (b.type === 'BOSS') fallSpeed *= 0.5; // Slower boss
 
-                this.entities.blocks.forEach((b, i) => {
                     b.y += fallSpeed;
-                    let landY = floorY - this.cellSize;
-                    if (this.grid[b.col].length > 0) landY = this.grid[b.col][this.grid[b.col].length-1].targetY - this.cellSize;
+                    
+                    // Landing Logic
+                    let landY;
+                    if (b.type === 'BOSS') {
+                        // Boss checks two columns
+                        let y1 = floorY - this.cellSize;
+                        if (this.grid[b.col].length > 0) y1 = this.grid[b.col][this.grid[b.col].length-1].targetY - this.cellSize;
+                        
+                        let y2 = floorY - this.cellSize;
+                        if (this.grid[b.col+1].length > 0) y2 = this.grid[b.col+1][this.grid[b.col+1].length-1].targetY - this.cellSize;
+                        
+                        landY = Math.min(y1, y2); // Sits on highest stack (lowest Y)
+                        // Adjust landY upwards because Boss is 2 cells tall
+                        landY -= this.cellSize; // Boss height is 2*cell, y1/y2 account for 1 cell
+                    } else {
+                        landY = floorY - this.cellSize;
+                        if (this.grid[b.col].length > 0) landY = this.grid[b.col][this.grid[b.col].length-1].targetY - this.cellSize;
+                    }
 
                     if (b.y >= landY) {
                         b.y = landY;
-                        b.targetY = landY;
-                        this.grid[b.col].push({ ...b, landTime: now });
+                        
+                        if (b.type === 'BOSS') {
+                            // Boss solidification: Turns into 4 blocks
+                            const color = b.color;
+                            // Left Col (Top, Bottom)
+                            this.grid[b.col].push({ col: b.col, y: landY + this.cellSize, w: this.cellSize-6, h: this.cellSize-6, color, targetY: landY + this.cellSize, landTime: now });
+                            this.grid[b.col].push({ col: b.col, y: landY, w: this.cellSize-6, h: this.cellSize-6, color, targetY: landY, landTime: now });
+                            // Right Col (Top, Bottom)
+                            this.grid[b.col+1].push({ col: b.col+1, y: landY + this.cellSize, w: this.cellSize-6, h: this.cellSize-6, color, targetY: landY + this.cellSize, landTime: now });
+                            this.grid[b.col+1].push({ col: b.col+1, y: landY, w: this.cellSize-6, h: this.cellSize-6, color, targetY: landY, landTime: now });
+                            
+                            this.shake = 10;
+                            Audio.sfx.explode();
+                        } else {
+                            b.targetY = landY;
+                            this.grid[b.col].push({ ...b, landTime: now });
+                            this.shake = 2;
+                            Audio.sfx.hit(); // Subtle land sound re-using hit
+                        }
+                        
                         this.entities.blocks.splice(i, 1);
-                        this.shake = 2;
                         if (b.y <= CONFIG.DANGER_Y) this.end();
                     }
-                });
+                }
 
                 // Update Grid Positions
                 this.grid.forEach(col => {
                     col.forEach((b, r) => {
                         const target = floorY - this.cellSize - (r * this.cellSize);
                         b.targetY = target;
-                        if(b.y < target) b.y += fallSpeed * 8; 
+                        if(b.y < target) b.y += 10; // Snap down fast
                         if(b.y > target) b.y = target;
                     });
                 });
 
-                // Powerups
                 this.entities.powerups.forEach((p, i) => {
                     p.y += p.vy * timeScale;
                     if(p.y > this.height) this.entities.powerups.splice(i, 1);
@@ -941,25 +995,27 @@
                     if(hitP) { this.entities.bullets.splice(i, 1); continue; }
 
                     // Collision Blocks
-                    const checkBlock = (bk) => {
-                        const bx = this.gridOffsetX + bk.col * this.cellSize;
-                        return (b.x > bx && b.x < bx + bk.w && b.y > bk.y && b.y < bk.y + bk.h);
-                    };
-
                     let hitB = false;
-                    // Check falling
+                    
+                    // Check falling blocks (Boss & Normal)
                     for(let j=this.entities.blocks.length-1; j>=0; j--) {
-                        if (checkBlock(this.entities.blocks[j])) {
-                            this.handleBulletHit(b, this.entities.blocks[j], 'falling', j);
+                        const bk = this.entities.blocks[j];
+                        const bx = this.gridOffsetX + bk.col * this.cellSize;
+                        // For collision, use block's own dimensions
+                        if (b.x > bx && b.x < bx + bk.w && b.y > bk.y && b.y < bk.y + bk.h) {
+                            this.handleBulletHit(b, bk, 'falling', j);
                             hitB = true; break;
                         }
                     }
+                    
                     // Check grid
                     if(!hitB) {
                          outer: for(let c=0; c<CONFIG.COLS; c++) {
                              for(let r=this.grid[c].length-1; r>=0; r--) {
-                                 if (checkBlock(this.grid[c][r])) {
-                                     this.handleBulletHit(b, this.grid[c][r], 'grid', {c,r});
+                                 const bk = this.grid[c][r];
+                                 const bx = this.gridOffsetX + bk.col * this.cellSize;
+                                 if (b.x > bx && b.x < bx + bk.w && b.y > bk.y && b.y < bk.y + bk.h) {
+                                     this.handleBulletHit(b, bk, 'grid', {c,r});
                                      hitB = true; break outer;
                                  }
                              }
@@ -969,7 +1025,6 @@
                     if(hitB) this.entities.bullets.splice(i, 1);
                 }
 
-                // Particles
                 for(let i=this.entities.particles.length-1; i>=0; i--) {
                     const p = this.entities.particles[i];
                     p.x += p.vx * timeScale;
@@ -980,13 +1035,32 @@
 
                 if (this.shake > 0) this.shake *= 0.9;
                 
-                this.draw(now); // Pass now to draw
+                this.draw(now);
                 this.loopId = requestAnimationFrame(t => this.loop(t));
             },
 
             handleBulletHit(bullet, block, type, index) {
+                if (block.type === 'BOSS') {
+                    // Boss logic
+                    block.hp--;
+                    this.createExplosion(block.x + this.gridOffsetX + block.w/2, block.y + block.h, '#fff'); // Small spark
+                    Audio.sfx.bossHit();
+                    
+                    if (block.hp <= 0) {
+                        this.destroyBlock(block, type, index);
+                        this.score += 500; // Bonus for boss
+                        this.sessionCoins += 50;
+                        this.shake = 15;
+                        Audio.sfx.explode();
+                        UI.updateHUD();
+                    } else {
+                        // Flash effect could go here
+                        block.flash = 5;
+                    }
+                    return;
+                }
+
                 if (bullet.type === 'BOMB') {
-                    // Area of effect
                     this.createExplosion(block.x + this.gridOffsetX + 20, block.y + 20, '#e74c3c');
                     this.explodeArea(block.col, block.y);
                     Audio.sfx.explode();
@@ -1001,15 +1075,18 @@
                 const minC = Math.max(0, col-1);
                 const maxC = Math.min(CONFIG.COLS-1, col+1);
                 
-                // Hit Falling
                 for(let i=this.entities.blocks.length-1; i>=0; i--) {
                     const b = this.entities.blocks[i];
+                    // Don't insta-kill boss with bomb, just damage
+                    if (b.type === 'BOSS') {
+                        if (Math.abs(b.y - y) < 100) b.hp -= 5;
+                        continue;
+                    }
                     if (b.col >= minC && b.col <= maxC && Math.abs(b.y - y) < this.cellSize * 1.5) {
                         this.destroyBlock(b, 'falling', i);
                     }
                 }
                 
-                // Hit Grid 
                 for(let c=minC; c<=maxC; c++) {
                     for(let r=this.grid[c].length-1; r>=0; r--) {
                         const b = this.grid[c][r];
@@ -1021,7 +1098,9 @@
             },
 
             destroyBlock(block, type, index) {
-                this.createExplosion(this.gridOffsetX + block.col * this.cellSize + 25, block.y + 25, block.color);
+                const bx = this.gridOffsetX + block.col * this.cellSize;
+                // Center explosion based on block width
+                this.createExplosion(bx + (block.w||this.cellSize)/2, block.y + (block.h||this.cellSize)/2, block.color);
                 
                 if (type === 'falling') {
                     this.entities.blocks.splice(index, 1);
@@ -1030,14 +1109,13 @@
                 }
 
                 this.score += 10;
-                // Coin logic: Base 10 + Greed
                 const greedBonus = 1 + (Data.profile.upgrades.greed * 0.1);
                 this.sessionCoins += Math.ceil(10 * greedBonus);
                 UI.updateHUD();
             },
 
             createExplosion(x, y, color) {
-                for(let i=0; i<12; i++) { // More particles
+                for(let i=0; i<12; i++) { 
                     const angle = Math.random() * Math.PI * 2;
                     const speed = Math.random() * 6 + 2;
                     this.entities.particles.push({
@@ -1053,7 +1131,6 @@
                 const type = Data.profile.equippedBg;
                 
                 if (type === 'bg_vapor') {
-                    // Vaporwave
                     const grd = this.ctx.createLinearGradient(0, 0, 0, this.height);
                     grd.addColorStop(0, "#2c3e50");
                     grd.addColorStop(0.5, "#8e44ad");
@@ -1061,22 +1138,18 @@
                     this.ctx.fillStyle = grd;
                     this.ctx.fillRect(0, 0, this.width, this.height);
                     
-                    // Sun
                     this.ctx.fillStyle = '#f1c40f';
                     this.ctx.beginPath();
                     this.ctx.arc(this.width/2, this.height*0.6, 100, 0, Math.PI*2);
                     this.ctx.fill();
-                    // Sun cuts
-                    this.ctx.fillStyle = '#c0392b'; // match bottom of gradient
+                    this.ctx.fillStyle = '#c0392b'; 
                     for(let i=0; i<6; i++) {
                         this.ctx.fillRect(this.width/2 - 110, this.height*0.6 + 20 + (i*12), 220, 4);
                     }
 
-                    // Grid
                     this.ctx.strokeStyle = 'rgba(255, 105, 180, 0.3)';
                     this.ctx.lineWidth = 2;
                     const horizon = this.height * 0.6;
-                    // Horizontal lines
                     for (let i = 0; i < 10; i++) {
                         const y = horizon + (Math.pow(i/10, 2) * (this.height - horizon));
                         this.ctx.beginPath();
@@ -1084,7 +1157,6 @@
                         this.ctx.lineTo(this.width, y);
                         this.ctx.stroke();
                     }
-                    // Vertical lines (Perspective)
                     for (let i = -10; i <= 20; i++) {
                         this.ctx.beginPath();
                         this.ctx.moveTo(this.width/2 + (i * 100), this.height);
@@ -1093,14 +1165,12 @@
                     }
 
                 } else if (type === 'bg_midnight') {
-                    // Midnight
                     const grd = this.ctx.createLinearGradient(0, 0, 0, this.height);
                     grd.addColorStop(0, "#000000");
                     grd.addColorStop(1, "#1a252f");
                     this.ctx.fillStyle = grd;
                     this.ctx.fillRect(0, 0, this.width, this.height);
                     
-                    // Stars
                     this.ctx.fillStyle = 'white';
                     this.entities.stars.forEach(s => {
                         this.ctx.globalAlpha = 0.5 + Math.sin(now*0.005 + s.x)*0.5;
@@ -1111,14 +1181,12 @@
                     this.ctx.globalAlpha = 1.0;
 
                 } else if (type === 'bg_emerald') {
-                    // Emerald Forest
                     const grd = this.ctx.createLinearGradient(0, 0, 0, this.height);
                     grd.addColorStop(0, "#145A32");
                     grd.addColorStop(1, "#1E8449");
                     this.ctx.fillStyle = grd;
                     this.ctx.fillRect(0, 0, this.width, this.height);
                     
-                    // Layered hills
                     const drawHill = (yOff, color, speed) => {
                         this.ctx.fillStyle = color;
                         this.ctx.beginPath();
@@ -1136,13 +1204,12 @@
                     drawHill(50, '#27AE60', 0.001);
 
                 } else {
-                    // Clean
                     this.ctx.fillStyle = '#f4f7f6';
                     this.ctx.fillRect(0, 0, this.width, this.height);
                 }
 
-                // --- BRIGHTNESS TINT ---
-                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+                // --- BRIGHTNESS TINT REDUCED ---
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.15)'; 
                 this.ctx.fillRect(0, 0, this.width, this.height);
             },
 
@@ -1150,12 +1217,10 @@
                 this.drawBackground(now);
 
                 this.ctx.save();
-                // Shake
                 const dx = (Math.random()-0.5)*this.shake;
                 const dy = (Math.random()-0.5)*this.shake;
                 this.ctx.translate(dx, dy);
 
-                // Grid Lines
                 const gridW = CONFIG.COLS * this.cellSize;
                 const floorY = this.height - CONFIG.GRID_MARGIN_BOTTOM;
                 
@@ -1169,13 +1234,11 @@
                 }
                 this.ctx.stroke();
 
-                // Floor
                 this.ctx.fillStyle = '#bdc3c7';
                 this.ctx.beginPath();
                 this.ctx.roundRect(this.gridOffsetX - 10, floorY, gridW + 20, 8, 4);
                 this.ctx.fill();
 
-                // Danger Line
                 this.ctx.strokeStyle = '#ff7675';
                 this.ctx.setLineDash([10, 10]);
                 this.ctx.beginPath();
@@ -1184,16 +1247,13 @@
                 this.ctx.stroke();
                 this.ctx.setLineDash([]);
 
-                // Draw Entities
                 const drawB = (b) => {
                     const x = this.gridOffsetX + b.col * this.cellSize + 3;
                     
-                    // Bounce Animation
                     let sx = 1, sy = 1;
                     if (b.landTime) {
                         const t = now - b.landTime;
                         if (t < 400) {
-                            // Damped sine wave
                             const amp = Math.exp(-t * 0.01) * 0.3; 
                             const freq = 0.02;
                             sy = 1 - Math.sin(t * freq) * amp;
@@ -1202,74 +1262,84 @@
                     }
 
                     this.ctx.save();
-                    // Pivot around center of block
-                    const cx = x + b.w/2;
-                    const cy = b.y + 3 + b.h/2;
-                    this.ctx.translate(cx, cy);
-                    this.ctx.scale(sx, sy);
-                    this.ctx.translate(-cx, -cy);
+                    if (b.type === 'BOSS') {
+                        // Flash white on hit
+                        if (b.flash > 0) {
+                            this.ctx.fillStyle = '#fff';
+                            b.flash--;
+                        } else {
+                            this.ctx.fillStyle = '#34495e'; // Dark color for boss
+                        }
+                        this.roundRect(x, b.y+3, b.w, b.h, 12);
+                        this.ctx.fill();
+                        
+                        // Boss Eye
+                        this.ctx.fillStyle = '#e74c3c';
+                        this.ctx.beginPath();
+                        this.ctx.arc(x + b.w/2, b.y + b.h/2, 20, 0, Math.PI*2);
+                        this.ctx.fill();
+                        
+                        // Health Bar
+                        const hpPct = b.hp / b.maxHp;
+                        this.ctx.fillStyle = '#000';
+                        this.ctx.fillRect(x + 10, b.y - 15, b.w - 20, 8);
+                        this.ctx.fillStyle = '#2ecc71';
+                        this.ctx.fillRect(x + 10, b.y - 15, (b.w - 20) * hpPct, 8);
+                    } else {
+                        const cx = x + b.w/2;
+                        const cy = b.y + 3 + b.h/2;
+                        this.ctx.translate(cx, cy);
+                        this.ctx.scale(sx, sy);
+                        this.ctx.translate(-cx, -cy);
 
-                    this.ctx.fillStyle = b.color;
-                    this.roundRect(x, b.y+3, b.w, b.h, 8);
-                    this.ctx.fill();
-                    // Shine
-                    this.ctx.fillStyle = 'rgba(255,255,255,0.25)';
-                    this.ctx.beginPath();
-                    this.roundRect(x, b.y+3, b.w, b.h/2.5, [8,8,0,0]);
-                    this.ctx.fill();
-                    
+                        this.ctx.fillStyle = b.color;
+                        this.roundRect(x, b.y+3, b.w, b.h, 8);
+                        this.ctx.fill();
+                        this.ctx.fillStyle = 'rgba(255,255,255,0.25)';
+                        this.ctx.beginPath();
+                        this.roundRect(x, b.y+3, b.w, b.h/2.5, [8,8,0,0]);
+                        this.ctx.fill();
+                    }
                     this.ctx.restore();
                 };
 
                 this.grid.forEach(col => col.forEach(drawB));
                 this.entities.blocks.forEach(drawB);
 
-                // Powerups
                 this.entities.powerups.forEach(p => {
-                    // Pulse animation
                     const pulse = 1 + Math.sin(now * 0.008) * 0.1;
-                    
                     this.ctx.save();
                     this.ctx.translate(p.x, p.y);
                     this.ctx.scale(pulse, pulse);
-
-                    // Drop Shadow
                     this.ctx.shadowColor = POWERUPS[p.type].color;
                     this.ctx.shadowBlur = 20;
-
                     this.ctx.fillStyle = POWERUPS[p.type].color;
                     this.ctx.beginPath();
-                    this.ctx.arc(0, 0, 22, 0, Math.PI*2); // Bigger
+                    this.ctx.arc(0, 0, 22, 0, Math.PI*2); 
                     this.ctx.fill();
-                    
-                    this.ctx.shadowBlur = 0; // Reset shadow for inner details
-
-                    // Detail
+                    this.ctx.shadowBlur = 0; 
                     this.ctx.strokeStyle = 'white';
                     this.ctx.lineWidth = 3;
                     this.ctx.beginPath();
                     this.ctx.arc(0, 0, 16, 0, Math.PI*2);
                     this.ctx.stroke();
-                    
                     this.ctx.fillStyle = '#fff';
                     this.ctx.font = '900 14px Inter';
                     this.ctx.textAlign = 'center';
                     this.ctx.textBaseline = 'middle';
                     this.ctx.fillText(p.type[0], 0, 2);
-                    
                     this.ctx.restore();
                 });
 
-                // Bullets
                 this.entities.bullets.forEach(b => {
                     if (b.type === 'LASER') {
                          this.ctx.save();
                          this.ctx.translate(b.x, b.y);
                          this.ctx.rotate(b.angle);
                          this.ctx.fillStyle = `rgba(142, 68, 173, ${b.life * 5})`;
-                         this.ctx.fillRect(0, -4, 1000, 8); // Long beam
+                         this.ctx.fillRect(0, -4, 1000, 8); 
                          this.ctx.fillStyle = 'rgba(255,255,255,0.8)';
-                         this.ctx.fillRect(0, -1, 1000, 2); // Core
+                         this.ctx.fillRect(0, -1, 1000, 2); 
                          this.ctx.restore();
                     } else {
                         this.ctx.fillStyle = b.color;
@@ -1279,7 +1349,6 @@
                     }
                 });
 
-                // Particles
                 this.entities.particles.forEach(p => {
                     this.ctx.globalAlpha = p.life;
                     this.ctx.fillStyle = p.color;
@@ -1289,7 +1358,6 @@
                     this.ctx.globalAlpha = 1.0;
                 });
 
-                // Gun / Crosshair
                 this.drawGun(this.width/2, this.height, this.mouse.x, this.mouse.y);
 
                 this.ctx.restore();
@@ -1301,38 +1369,31 @@
                 this.ctx.translate(cx, cy);
                 this.ctx.rotate(angle + Math.PI/2);
                 
-                // Recoil offset
                 const recoilY = this.gunRecoil;
 
-                // Base Turret
                 this.ctx.fillStyle = '#2c3e50';
                 this.ctx.beginPath();
-                this.ctx.arc(0, 0, 30, Math.PI, 0); // Semicircle base
+                this.ctx.arc(0, 0, 30, Math.PI, 0); 
                 this.ctx.fill();
 
-                // Gun Body
                 this.ctx.fillStyle = '#34495e';
                 
-                // Barrels
                 if (this.activeEffects.has('MINIGUN')) {
                     this.ctx.fillStyle = '#c0392b';
                     this.ctx.fillRect(-12, -70 + recoilY, 8, 45);
                     this.ctx.fillRect(4, -70 + recoilY, 8, 45);
-                    // Connector
                     this.ctx.fillStyle = '#2c3e50';
                     this.ctx.fillRect(-14, -40, 28, 15);
                 } else if (this.activeEffects.has('LASER')) {
                     this.ctx.fillStyle = '#8e44ad';
                     this.ctx.fillRect(-8, -80 + recoilY, 16, 60);
-                    // Glowing core
                     this.ctx.fillStyle = '#e1b12c';
                     this.ctx.fillRect(-2, -75 + recoilY, 4, 50);
                 } else {
                     this.ctx.fillStyle = '#7f8c8d';
-                    this.ctx.fillRect(-6, -70 + recoilY, 12, 50); // Simple barrel
+                    this.ctx.fillRect(-6, -70 + recoilY, 12, 50); 
                 }
 
-                // Muzzle Flash
                 if (this.muzzleFlash > 0) {
                     this.ctx.fillStyle = '#f1c40f';
                     this.ctx.beginPath();
@@ -1344,7 +1405,6 @@
                     this.ctx.fill();
                 }
 
-                // Pivot Cap
                 this.ctx.fillStyle = '#2c3e50';
                 this.ctx.beginPath();
                 this.ctx.arc(0, 0, 15, 0, Math.PI*2);
@@ -1356,13 +1416,11 @@
 
                 this.ctx.restore();
 
-                // Crosshair
                 this.ctx.strokeStyle = '#2c3e50';
                 this.ctx.lineWidth = 2;
                 this.ctx.beginPath();
                 this.ctx.arc(mx, my, 8, 0, Math.PI*2);
                 this.ctx.stroke();
-                // Crosshair dot
                 this.ctx.fillStyle = '#e74c3c';
                 this.ctx.beginPath();
                 this.ctx.arc(mx, my, 3, 0, Math.PI*2);
@@ -1385,7 +1443,6 @@
             }
         };
 
-        // --- UI MANAGER ---
         const UI = {
             currentShopTab: 'upgrades',
             
@@ -1395,14 +1452,12 @@
             showMenu() {
                 this.hideScreens();
                 document.getElementById('screen-menu').classList.add('active');
-                // Enable blur
                 Game.canvas.classList.add('blurred');
                 this.updateMenuStats();
             },
             showShop() {
                 this.hideScreens();
                 document.getElementById('screen-shop').classList.add('active');
-                // Enable blur
                 Game.canvas.classList.add('blurred');
                 this.renderShop();
             },
@@ -1451,7 +1506,6 @@
                         el.className = `shop-item ${isEquipped ? 'equipped' : ''}`;
                         if (!isOwned && !canAfford) el.classList.add('locked');
                         
-                        // Background Click Logic
                         el.onclick = () => {
                             if (!isOwned) {
                                 if (canAfford) Data.buy(key);
@@ -1476,7 +1530,6 @@
                             </div>
                         `;
                     } else {
-                        // Regular Upgrades
                         const lvl = Data.profile.upgrades[key];
                         isMax = lvl >= conf.max;
                         price = Math.floor(conf.cost * Math.pow(1.5, lvl));
@@ -1499,7 +1552,6 @@
             }
         };
 
-        // --- ADMIN FUNCTIONS ---
         function toggleAdmin() {
             const p = document.getElementById('admin-panel');
             p.style.display = p.style.display === 'none' ? 'block' : 'none';
@@ -1519,7 +1571,6 @@
             Game.infiniteMoney = e.target.checked;
         });
 
-        // --- INIT ---
         Game.init();
         UI.showMenu();
 
